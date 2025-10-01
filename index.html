@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Museo Aetheria: Galería de Ecos Digitales</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: #000;
+        color: #fff;
+        font-family: "Inter", sans-serif;
+      }
+      #blocker {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        flex-direction: column;
+        cursor: pointer;
+      }
+      #instructions {
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        background: rgba(20, 20, 20, 0.8);
+      }
+      #crosshair {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: rgba(255, 255, 255, 0.5);
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+      #art-info {
+        position: fixed;
+        bottom: 5%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(10, 10, 10, 0.85);
+        color: #e0e0e0;
+        padding: 20px;
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        max-width: 90%;
+        width: 600px;
+        text-align: center;
+        opacity: 0;
+        transition: opacity 0.5s ease-in-out;
+        pointer-events: none;
+        backdrop-filter: blur(10px);
+      }
+      #art-info.visible {
+        opacity: 1;
+      }
+      #music-toggle {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(10, 10, 10, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: white;
+        padding: 10px;
+        border-radius: 50%;
+        cursor: pointer;
+        width: 44px;
+        height: 44px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="blocker">
+      <div id="instructions" class="p-8 rounded-lg shadow-2xl">
+        <h1 class="text-3xl lg:text-5xl font-bold mb-4">Museo Aetheria</h1>
+        <p class="text-lg lg:text-xl mb-6">
+          Bienvenido a la Galería de Ecos Digitales.
+        </p>
+        <p class="mb-2"><b>Moverse:</b> Teclas W, A, S, D</p>
+        <p class="mb-2"><b>Mirar:</b> Mueve el ratón</p>
+        <p class="mb-6"><b>Salir:</b> Tecla ESC</p>
+        <p class="text-2xl font-bold">Haz clic para entrar</p>
+      </div>
+    </div>
+
+    <div id="crosshair" style="display: none"></div>
+
+    <div id="art-info">
+      <h2 id="art-title" class="text-2xl font-bold mb-2"></h2>
+      <p id="art-description" class="text-base"></p>
+    </div>
+
+    <button id="music-toggle" title="Activar/Desactivar música">
+      <svg
+        id="music-on-icon"
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M9 18V5l12-2v13"></path>
+        <circle cx="6" cy="18" r="3"></circle>
+        <circle cx="18" cy="16" r="3"></circle>
+      </svg>
+      <svg
+        id="music-off-icon"
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        style="display: none"
+      >
+        <line x1="1" y1="1" x2="23" y2="23"></line>
+        <path d="M9 18V5l12-2v13"></path>
+        <circle cx="6" cy="18" r="3"></circle>
+        <circle cx="18" cy="16" r="3"></circle>
+      </svg>
+    </button>
+
+    <canvas id="canvas"></canvas>
+
+    <!-- Audio de fondo local -->
+    <audio
+      id="bgm"
+      src="audio/Through the Infinite Frames.mp3"
+      loop
+      preload="auto"
+    ></audio>
+
+    <script
+      async
+      src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"
+    ></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+      const BUILD_VERSION = "DEV v-2025-09-30-02";
+      console.log("[Galeria] Build:", BUILD_VERSION);
+      document.title = document.title + " [" + BUILD_VERSION + "]";
+      const badgeEl = document.getElementById("build-badge");
+      function updateBadge(loaded, total, errors = 0) {
+        if (!badgeEl) return;
+        badgeEl.textContent = `${BUILD_VERSION} | textures ${loaded}/${total}${
+          errors ? `, errors ${errors}` : ""
+        }`;
+      }
+      import * as THREE from "three";
+      import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
+
+      // --- Configuración Esencial ---
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      const renderer = new THREE.WebGLRenderer({
+        canvas: document.getElementById("canvas"),
+        antialias: true,
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x0a0a0a); // Un fondo muy oscuro
+      renderer.shadowMap.enabled = true;
+      // Color space recomendado para texturas sRGB
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+      // --- Controles de Primera Persona ---
+      const controls = new PointerLockControls(camera, document.body);
+      const blocker = document.getElementById("blocker");
+      const instructions = document.getElementById("instructions");
+      const crosshair = document.getElementById("crosshair");
+
+      instructions.addEventListener("click", () => {
+        controls.lock();
+      });
+
+      controls.addEventListener("lock", () => {
+        instructions.style.display = "none";
+        blocker.style.display = "none";
+        crosshair.style.display = "block";
+        // Iniciar la música directamente al entrar.
+        // El navegador requiere una interacción del usuario para iniciar el audio.
+        startMusic();
+      });
+
+      controls.addEventListener("unlock", () => {
+        blocker.style.display = "flex";
+        instructions.style.display = "";
+        crosshair.style.display = "none";
+      });
+
+      scene.add(controls.getObject());
+
+      // --- Movimiento del Jugador ---
+      let moveForward = false;
+      let moveBackward = false;
+      let moveLeft = false;
+      let moveRight = false;
+      const velocity = new THREE.Vector3();
+      const direction = new THREE.Vector3();
+      const playerSpeed = 5.0;
+
+      document.addEventListener("keydown", (event) => {
+        switch (event.code) {
+          case "ArrowUp":
+          case "KeyW":
+            moveForward = true;
+            break;
+          case "ArrowLeft":
+          case "KeyA":
+            moveLeft = true;
+            break;
+          case "ArrowDown":
+          case "KeyS":
+            moveBackward = true;
+            break;
+          case "ArrowRight":
+          case "KeyD":
+            moveRight = true;
+            break;
+        }
+      });
+
+      document.addEventListener("keyup", (event) => {
+        switch (event.code) {
+          case "ArrowUp":
+          case "KeyW":
+            moveForward = false;
+            break;
+          case "ArrowLeft":
+          case "KeyA":
+            moveLeft = false;
+            break;
+          case "ArrowDown":
+          case "KeyS":
+            moveBackward = false;
+            break;
+          case "ArrowRight":
+          case "KeyD":
+            moveRight = false;
+            break;
+        }
+      });
+
+      // Posición inicial del jugador
+      camera.position.y = 1.7;
+      camera.position.z = 8;
+
+      // --- Creación del Museo ---
+      const galleryRadius = 12;
+      const galleryHeight = 6;
+
+      // Suelo
+      const floorGeometry = new THREE.CircleGeometry(galleryRadius, 64);
+      const floorMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1a1a1a,
+        metalness: 0.8,
+        roughness: 0.3,
+      });
+      const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      // Pared
+      const wallGeometry = new THREE.CylinderGeometry(
+        galleryRadius,
+        galleryRadius,
+        galleryHeight,
+        64,
+        1,
+        true
+      );
+      const wallMaterial = new THREE.MeshStandardMaterial({
+        color: 0x151515,
+        side: THREE.BackSide,
+      });
+      const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+      wall.position.y = galleryHeight / 2;
+      scene.add(wall);
+
+      // Techo
+      const ceilingGeometry = new THREE.CircleGeometry(galleryRadius, 64);
+      const ceilingMaterial = new THREE.MeshStandardMaterial({
+        color: 0x101010,
+      });
+      const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+      ceiling.position.y = galleryHeight;
+      ceiling.rotation.x = Math.PI / 2;
+      scene.add(ceiling);
+
+      // --- Iluminación (CORREGIDA) ---
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // Luz ambiental más clara
+      scene.add(ambientLight);
+
+      const centralLight = new THREE.PointLight(0xffffff, 1.5, 100); // Luz central mucho más potente
+      centralLight.position.set(0, galleryHeight - 0.5, 0);
+      scene.add(centralLight);
+
+      // --- Obras de Arte ---
+      // Puedes cambiar las URLs de las imágenes aquí
+      const artworks = [
+        {
+          name: "El Abrazo del Tiempo",
+          description:
+            "En esta pintura, he buscado representar la interconexión entre el pasado, el presente y el futuro, y cómo el tiempo nos envuelve y moldea. Se aprecian figuras etéreas entrelazadas con elementos que simbolizan el fluir constante: arenas de reloj de arena que se desvanecen en remolinos de color, engranajes antiguos que giran lentamente y la luz de un amanecer eterno que promete nuevos comienzos. Los tonos suaves y difuminados dan una sensación de intemporalidad y misterio, invitando a la reflexión sobre nuestra propia relación con el tiempo.",
+          // Ruta relativa (sin la barra inicial) para funcionar correctamente bajo un servidor local
+          imageUrl: "imgs/el_abrazo_del_tiempo.png",
+          width: 3,
+          height: 4,
+        },
+        {
+          name: "Sinfonía Urbana al Atardecer",
+          description:
+            "En esta pintura, he querido plasmar la explosión de colores y la vitalidad que surge cuando el sol se despide de la ciudad. Los rascacielos se tiñen de naranjas, rosas y púrpuras intensos, reflejando el cielo dramático. Las luces de los vehículos y los edificios comienzan a encenderse, creando un mosaico brillante que contrasta con las últimas luces del día. Se percibe el bullicio de la vida urbana, el movimiento constante y la promesa de una noche llena de posibilidades, todo envuelto en una atmósfera vibrante y dinámica.",
+          // Forzamos PNG para evitar posibles respuestas SVG y asegurar compatibilidad con WebGL
+          imageUrl: "imgs/Sinfonia_Urbana_al_Atardecer.png",
+          width: 3,
+          height: 4,
+        },
+        {
+          name: "El Jardín de los Sueños Olvidados",
+          description:
+            "En esta pintura, he intentado capturar un lugar místico y un tanto melancólico, donde los sueños del pasado residen. Es un jardín exuberante, cubierto de una vegetación fantástica con flores que brillan con una luz propia y árboles cuyas ramas parecen susurrar viejas historias. Entre la flora, se vislumbran sutiles siluetas de objetos que evocan recuerdos perdidos: un columpio abandonado, un libro abierto cuyas páginas vuelan con el viento invisible, y una fuente de agua cristalina que parece brotar de un manantial de recuerdos. La paleta de colores es suave, con predominio de verdes esmeralda, azules profundos y toques de violeta y dorado que acentúan la sensación de un lugar mágico y olvidado en el tiempo.",
+          imageUrl: "imgs/El_Jardín_de_los_Sueños_Olvidados.png",
+          width: 4,
+          height: 3,
+        },
+        {
+          name: "Retrato de un Alma Errante",
+          description:
+            "En esta pieza, he intentado capturar la esencia de un espíritu libre y pensativo, alguien que ha recorrido muchos caminos y lleva consigo las historias de sus viajes. La figura, de expresión profunda y mirada algo distante, parece estar en un punto de contemplación, quizás al borde de un nuevo viaje o reflexionando sobre los ya vividos. El fondo es un paisaje ambiguo, con elementos que sugieren vastedad y movimiento: nubes arremolinadas, caminos que se pierden en el horizonte o fragmentos de diferentes entornos que se fusionan, simbolizando los diversos lugares y experiencias que han marcado su existencia. Los colores son sobrios, con predominio de tonos tierra, grises y azules apagados, lo que refuerza la sensación de una búsqueda constante y una profunda reflexión interna.",
+          imageUrl: "imgs/Retrato_de_un_Alma_Errante.png",
+          width: 3,
+          height: 4,
+        },
+        {
+          name: "Fragmentos de la Existencia",
+          description:
+            "En esta pintura, he querido plasmar la naturaleza fragmentada de nuestra realidad y recuerdos. No hay una narrativa lineal, sino una superposición de escenas, objetos y texturas que se entrelazan y chocan. Puedes ver rostros difuminados que emergen de la bruma, elementos arquitectónicos descontextualizados, símbolos abstractos y detalles de la vida cotidiana que parecen flotar o incrustarse unos en otros. La composición es un collage visual donde cada fragmento representa una memoria, una emoción, una idea o un momento capturado y conservado en el vasto lienzo de la conciencia. La paleta de colores es variada, a veces vibrante y otras veces tenue, reflejando la diversidad y la contradicción inherente a la vida misma. Es una invitación a la interpretación personal, a encontrar conexiones y significados en la yuxtaposición de lo aparentemente inconexo.",
+          imageUrl: "imgs/Fragmentos_de_la_Existencia.png",
+          width: 4,
+          height: 3,
+        },
+      ];
+
+      const textureLoader = new THREE.TextureLoader();
+      const artGroup = new THREE.Group();
+      const numArtworks = artworks.length;
+      let texturesLoaded = 0;
+      let texturesErrors = 0;
+      updateBadge(texturesLoaded, numArtworks, texturesErrors);
+
+      artworks.forEach((art, i) => {
+        const angle = (i / numArtworks) * Math.PI * 2;
+        const x = (galleryRadius - 0.5) * Math.sin(angle);
+        const z = (galleryRadius - 0.5) * Math.cos(angle);
+
+        // Pintura
+        const artGeometry = new THREE.PlaneGeometry(art.width, art.height);
+        // Material "unlit" para que la obra se vea siempre; sin transparencia para ignorar canal alpha del PNG
+        const artMaterial = new THREE.MeshBasicMaterial({
+          side: THREE.DoubleSide,
+          color: 0xffffff,
+        });
+        const artTexture = textureLoader.load(
+          art.imageUrl,
+          () => {
+            console.log("Textura cargada:", art.imageUrl);
+            artTexture.colorSpace = THREE.SRGBColorSpace;
+            artTexture.anisotropy =
+              renderer.capabilities.getMaxAnisotropy?.() || 1;
+            artTexture.needsUpdate = true;
+            artMaterial.needsUpdate = true; // ya asignamos map antes
+            texturesLoaded += 1;
+            updateBadge(texturesLoaded, numArtworks, texturesErrors);
+          },
+          undefined,
+          (err) => {
+            console.error("Error cargando textura:", art.imageUrl, err);
+            // Fallback: textura roja 1x1 para asegurar visibilidad
+            const data = new Uint8Array([255, 0, 0, 255]);
+            const fallback = new THREE.DataTexture(data, 1, 1);
+            fallback.needsUpdate = true;
+            fallback.colorSpace = THREE.SRGBColorSpace;
+            artMaterial.map = fallback;
+            artMaterial.needsUpdate = true;
+            texturesErrors += 1;
+            texturesLoaded += 1;
+            updateBadge(texturesLoaded, numArtworks, texturesErrors);
+          }
+        );
+        // Asignar el mapa inmediatamente (se actualizará al cargar)
+        artMaterial.map = artTexture;
+        artMaterial.needsUpdate = true;
+        const artMesh = new THREE.Mesh(artGeometry, artMaterial);
+        artMesh.position.set(x, galleryHeight / 2, z);
+        artMesh.lookAt(0, galleryHeight / 2, 0);
+        // Coloca la pintura por delante del marco (hacia el centro de la galería)
+        artMesh.translateZ(0.06);
+
+        // Marco de luz
+        const frameGeometry = new THREE.BoxGeometry(
+          art.width + 0.2,
+          art.height + 0.2,
+          0.1
+        );
+        const frameMaterial = new THREE.MeshStandardMaterial({
+          color: 0x333333,
+        });
+        const frameMesh = new THREE.Mesh(frameGeometry, frameMaterial);
+        frameMesh.position.set(x, galleryHeight / 2, z);
+        frameMesh.lookAt(0, galleryHeight / 2, 0);
+        // Aleja el marco de la pintura (hacia afuera), para no taparla
+        frameMesh.translateZ(-0.06);
+
+        // Luz específica para la obra (CORREGIDA)
+        const spotLight = new THREE.SpotLight(
+          0xffffff,
+          2.5,
+          15,
+          Math.PI * 0.25,
+          0.5
+        ); // Focos más potentes
+        spotLight.position.set(x * 0.8, galleryHeight / 2 + 2, z * 0.8);
+        spotLight.target = artMesh;
+        spotLight.castShadow = true;
+
+        artMesh.userData = { name: art.name, description: art.description };
+        artGroup.add(artMesh);
+        artGroup.add(frameMesh);
+        artGroup.add(spotLight);
+        artGroup.add(spotLight.target);
+      });
+      scene.add(artGroup);
+
+      // --- Interacción con Obras de Arte ---
+      const raycaster = new THREE.Raycaster();
+      const artInfoPanel = document.getElementById("art-info");
+      const artTitle = document.getElementById("art-title");
+      const artDescription = document.getElementById("art-description");
+      let lastLookedAt = null;
+
+      function checkInteraction() {
+        raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+        const intersects = raycaster.intersectObjects(artGroup.children);
+
+        if (intersects.length > 0 && intersects[0].distance < 6) {
+          const object = intersects[0].object;
+          if (object.userData.name) {
+            if (lastLookedAt !== object) {
+              artTitle.textContent = object.userData.name;
+              artDescription.textContent = object.userData.description;
+              artInfoPanel.classList.add("visible");
+              lastLookedAt = object;
+            }
+            return;
+          }
+        }
+
+        // Si no se mira nada
+        if (lastLookedAt) {
+          artInfoPanel.classList.remove("visible");
+          lastLookedAt = null;
+        }
+      }
+
+      // --- Música Ambiental ---
+      let musicPlaying = false;
+      let audioCtx, gainNode, mediaElementSource, audioEl;
+
+      function startMusic() {
+        if (musicPlaying) return;
+        try {
+          if (!audioCtx)
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          audioEl = document.getElementById("bgm");
+          if (!gainNode) {
+            gainNode = audioCtx.createGain();
+            gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime); // volumen medio
+          }
+          if (!mediaElementSource) {
+            mediaElementSource = audioCtx.createMediaElementSource(audioEl);
+            mediaElementSource.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+          }
+          // Comienza desde el inicio y reproduce
+          // En algunos navegadores, play() debe ser en respuesta a interacción (ya estamos dentro del lock)
+          audioEl.currentTime = 0;
+          audioEl.volume = 1.0; // controlaremos el volumen con el GainNode
+          audioEl
+            .play()
+            .catch((err) =>
+              console.warn("No se pudo iniciar el audio automáticamente:", err)
+            );
+          musicPlaying = true;
+          updateMusicIcon();
+        } catch (e) {
+          console.error("Web Audio API issue:", e);
+        }
+      }
+
+      function stopMusic() {
+        if (!musicPlaying) return;
+        if (audioCtx && gainNode) {
+          const now = audioCtx.currentTime;
+          try {
+            gainNode.gain.cancelScheduledValues(now);
+            gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+            gainNode.gain.linearRampToValueAtTime(0, now + 1);
+          } catch {}
+          setTimeout(() => {
+            if (audioEl) {
+              audioEl.pause();
+            }
+            // Restaurar volumen medio para próximo inicio
+            try {
+              gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime);
+            } catch {}
+          }, 1000);
+        } else if (audioEl) {
+          audioEl.pause();
+        }
+        musicPlaying = false;
+        updateMusicIcon();
+      }
+
+      const musicToggle = document.getElementById("music-toggle");
+      const musicOnIcon = document.getElementById("music-on-icon");
+      const musicOffIcon = document.getElementById("music-off-icon");
+
+      function updateMusicIcon() {
+        musicOnIcon.style.display = musicPlaying ? "block" : "none";
+        musicOffIcon.style.display = musicPlaying ? "none" : "block";
+      }
+
+      musicToggle.addEventListener("click", (e) => {
+        e.stopPropagation(); // Evita que el clic active el bloqueo de puntero
+        if (musicPlaying) {
+          stopMusic();
+        } else {
+          startMusic();
+        }
+      });
+
+      // --- Bucle de Animación ---
+      let prevTime = performance.now();
+      function animate() {
+        requestAnimationFrame(animate);
+
+        const time = performance.now();
+        const delta = (time - prevTime) / 1000;
+
+        if (controls.isLocked === true) {
+          velocity.x -= velocity.x * 10.0 * delta;
+          velocity.z -= velocity.z * 10.0 * delta;
+
+          direction.z = Number(moveForward) - Number(moveBackward);
+          direction.x = Number(moveRight) - Number(moveLeft);
+          direction.normalize();
+
+          if (moveForward || moveBackward)
+            velocity.z -= direction.z * playerSpeed * delta;
+          if (moveLeft || moveRight)
+            velocity.x -= direction.x * playerSpeed * delta;
+
+          controls.moveRight(-velocity.x);
+          controls.moveForward(-velocity.z);
+
+          // Evitar que el jugador salga de la galería
+          const playerPosition = controls.getObject().position;
+          const distanceFromCenter = Math.sqrt(
+            playerPosition.x * playerPosition.x +
+              playerPosition.z * playerPosition.z
+          );
+          if (distanceFromCenter > galleryRadius - 1) {
+            playerPosition.x *= (galleryRadius - 1) / distanceFromCenter;
+            playerPosition.z *= (galleryRadius - 1) / distanceFromCenter;
+          }
+
+          checkInteraction();
+        }
+
+        prevTime = time;
+        renderer.render(scene, camera);
+      }
+
+      // --- Ajuste de Ventana ---
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      animate();
+    </script>
+  </body>
+</html>
